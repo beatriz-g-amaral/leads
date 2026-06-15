@@ -1,7 +1,15 @@
-# Bun Starter
+# 🔍 Gerador de Leads - Maps & SEO
 
-Quickly get started with [Bun](https://bun.sh/) using this starter! Bun is a fast all-in-one JavaScript runtime with a focus on speed.
+Ferramenta full-stack de arquivo único criada com **Bun** e **TypeScript** para prospectar clientes locais automaticamente. Ela varre empresas no Google Maps por nicho e cidade, retornando uma interface visual que separa estabelecimentos sem presença digital daqueles que precisam de otimização de SEO (via PageSpeed Insights).
 
-- This starter starts a Bun HTTP server on [localhost:3000](http://localhost:3000).
-- You can check [http.ts](./http.ts) to see how the server is started.
-- If you want to upgrade Bun, you can change `BUN_VERSION` in the [Dockerfile](./.devcontainer/Dockerfile).
+## 🚀 Como rodar localmente
+
+1. Insira a sua chave do Google Cloud (com a `Places API` e `PageSpeed Insights API` ativadas) na primeira linha do arquivo `http.ts`.
+2. Instale o Bun na sua máquina (caso não tenha): 
+   ```bash
+   curl -fsSL [https://bun.sh/install](https://bun.sh/install) | bash
+Inicie o servidor:
+
+Bash
+bun run http.ts
+Acesse http://localhost:3000 no seu navegado
