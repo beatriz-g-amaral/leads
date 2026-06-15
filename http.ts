@@ -7,7 +7,7 @@ interface Place {
 }
 interface PlaceDetails extends Place {
   website?: string;
-  phone_number?: string;
+  formatted_phone_number?: string;
 }
 interface LeadSemSite {
   nome: string;
@@ -88,14 +88,14 @@ async function generateLeadsReport(searchQuery: string) {
       leadsSemSite.push({
         nome: details.name,
         endereco: details.formatted_address,
-        telefone: details.phone_number || "Não informado",
+        telefone: details.formatted_phone_number || "Não informado",
       });
     } else {
       const seoScore = await runSeoTest(details.website);
       leadsComSiteParaOtimizar.push({
         nome: details.name,
         site: details.website,
-        telefone: details.phone_number || "Não informado",
+        telefone: details.formatted_phone_number || "Não informado",
         notaSeo: seoScore,
       });
     }
