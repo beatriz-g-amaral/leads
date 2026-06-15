@@ -115,8 +115,12 @@ Bun.serve({
         if (!body.keyword)
           return new Response("Keyword is required", { status: 400 });
 
-        console.log(`[API] Iniciando busca para: ${body.keyword}`);
-        const relatorio = await generateLeadsReport(body.keyword);
+        const searchQuery = body.cidade
+          ? `${body.keyword} em ${body.cidade}`
+          : body.keyword;
+
+        console.log(`[API] Iniciando busca para: ${searchQuery}`);
+        const relatorio = await generateLeadsReport(searchQuery);
 
         return Response.json(relatorio);
       } catch (error) {
@@ -137,14 +141,18 @@ Bun.serve({
           <script src="https://cdn.tailwindcss.com"></script>
         </head>
         <body class="bg-gray-100 p-10 font-sans">
-          <div class="max-w-2xl mx-auto bg-white p-8 rounded-lg shadow-md">
+          <div class="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-md">
             <h1 class="text-2xl font-bold mb-6 text-gray-800">Prospecção de Leads</h1>
             
-            <div class="flex gap-4 mb-8">
-              <input type="text" id="keyword" placeholder="Ex: Contabilidade em Porto Alegre" 
+            <div class="flex flex-col md:flex-row gap-4 mb-8">
+              <input type="text" id="keyword" placeholder="O que buscar? (Ex: Clínica Veterinária)" 
                 class="flex-1 border border-gray-300 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              
+              <input type="text" id="cidade" placeholder="Onde? (Ex: Canoas)" value="Porto Alegre"
+                class="flex-1 border border-gray-300 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              
               <button onclick="buscar()" id="btn-buscar"
-                class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 font-semibold transition">
+                class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 font-semibold transition whitespace-nowrap">
                 Buscar Leads
               </button>
             </div>
@@ -165,6 +173,8 @@ Bun.serve({
           <script>
             async function buscar() {
               const keyword = document.getElementById('keyword').value;
+              const cidade = document.getElementById('cidade').value;
+              
               if (!keyword) return alert('Digite um ramo para pesquisar!');
 
               document.getElementById('loading').classList.remove('hidden');
@@ -175,7 +185,7 @@ Bun.serve({
                 const res = await fetch('/api/buscar-leads', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ keyword })
+                  body: JSON.stringify({ keyword, cidade })
                 });
                 
                 const data = await res.json();
