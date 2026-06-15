@@ -2,7 +2,7 @@ FROM oven/bun:1-alpine
 
 WORKDIR /app
 
-COPY index.ts .
+COPY http.ts .
 
 ENV NODE_ENV=production
 
