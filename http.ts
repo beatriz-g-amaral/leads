@@ -1,5 +1,6 @@
 const GOOGLE_API_KEY = "AIzaSyA-J4VenGoCiQeI3qX1NECd7hebwM7X4As";
-const CRM_API_URL = "https://lhc.webplanet.com.br/zap3stor/restapi/opportunity";
+const CRM_API_URL =
+  "https://lhc.webplanet.com.br/zap3stor/restapi/opportunities";
 const CRM_AUTH_TOKEN = "YWRtaW46V2VibmUxMA==";
 
 interface Place {
