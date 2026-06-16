@@ -115,7 +115,7 @@ Bun.serve({
           name: lead.nome,
           company: lead.nome,
           phone: lead.telefone,
-          status: "0",
+          status: 0,
           observation: `Endereço: ${lead.endereco || "N/A"}\nSite: ${
             lead.site || "N/A"
           }\nNota SEO: ${lead.notaSeo || "N/A"}\nOrigem: Gerador de Leads Maps`,
@@ -130,16 +130,38 @@ Bun.serve({
           body: JSON.stringify(payload),
         });
 
-        if (!crmResponse.ok) {
+        const crmData = await crmResponse.json();
+
+        if (!crmResponse.ok || crmData.error === true) {
+          console.error(
+            `\n❌ [ERRO CRM]:`,
+            crmData.result || "Falha desconhecida"
+          );
           return new Response(
-            JSON.stringify({ error: true, message: "Erro no CRM" }),
-            { status: 500 }
+            JSON.stringify({
+              error: true,
+              message: crmData.result || "Erro na API do CRM",
+            }),
+            {
+              status: 400,
+              headers: { "Content-Type": "application/json" },
+            }
           );
         }
 
         return Response.json({ success: true });
       } catch (error) {
-        return new Response("Erro interno", { status: 500 });
+        console.error("\n❌ [ERRO SERVIDOR BUN]:", error, "\n");
+        return new Response(
+          JSON.stringify({
+            error: true,
+            message: "Erro de comunicação com o Zap3stor",
+          }),
+          {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
       }
     }
 
@@ -226,14 +248,22 @@ Bun.serve({
                   body: JSON.stringify(leadData)
                 });
 
-                if (res.ok) {
+                const data = await res.json();
+
+                if (res.ok && !data.error) {
                   btn.innerHTML = '✅ No CRM';
                   btn.classList.replace('bg-purple-100', 'bg-green-100');
                   btn.classList.replace('text-purple-700', 'text-green-800');
                 } else {
-                  throw new Error('Falha');
+                  alert('Erro retornado pelo CRM:\\n\\n' + (data.message || 'Falha desconhecida.'));
+                  btn.innerHTML = '❌ Erro';
+                  setTimeout(() => {
+                    btn.innerHTML = textoOriginal;
+                    btn.disabled = false;
+                  }, 2000);
                 }
               } catch (e) {
+                alert('Erro de rede ou comunicação com o servidor Bun.');
                 btn.innerHTML = '❌ Erro';
                 setTimeout(() => {
                   btn.innerHTML = textoOriginal;
