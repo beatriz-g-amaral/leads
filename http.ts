@@ -1,20 +1,25 @@
 const GOOGLE_API_KEY = "AIzaSyA-J4VenGoCiQeI3qX1NECd7hebwM7X4As";
+const CRM_API_URL = "https://lhc.webplanet.com.br/zap3stor/restapi/opportunity";
+const CRM_AUTH_TOKEN = "YWRtaW46V2VibmUxMA==";
 
 interface Place {
   name: string;
   place_id: string;
   formatted_address: string;
 }
+
 interface PlaceDetails extends Place {
   website?: string;
   formatted_phone_number?: string;
 }
+
 interface LeadSemSite {
   nome: string;
   endereco: string;
   telefone: string;
   placeId: string;
 }
+
 interface LeadComSite {
   nome: string;
   site: string;
@@ -31,10 +36,8 @@ async function searchPlaces(query: string): Promise<Place[]> {
   const data = await response.json();
 
   if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
-    console.error(
-      `\n❌ [ERRO API Google Places - Busca]: Status ${data.status}`
-    );
-    if (data.error_message) console.error(`Motivo: ${data.error_message}\n`);
+    console.error(`\n❌ Erro Busca: Status ${data.status}`);
+    if (data.error_message) console.error(data.error_message);
   }
 
   return data.results || [];
@@ -46,10 +49,8 @@ async function getPlaceDetails(placeId: string): Promise<PlaceDetails> {
   const data = await response.json();
 
   if (data.status !== "OK") {
-    console.error(
-      `\n❌ [ERRO API Google Places - Detalhes do ID ${placeId}]: Status ${data.status}`
-    );
-    if (data.error_message) console.error(`Motivo: ${data.error_message}\n`);
+    console.error(`\n❌ Erro Detalhes: Status ${data.status}`);
+    if (data.error_message) console.error(data.error_message);
   }
 
   return data.result || {};
@@ -106,6 +107,42 @@ Bun.serve({
   async fetch(req) {
     const url = new URL(req.url);
 
+    if (url.pathname === "/api/salvar-crm" && req.method === "POST") {
+      try {
+        const lead = await req.json();
+
+        const payload = {
+          name: lead.nome,
+          company: lead.nome,
+          phone: lead.telefone,
+          status: "0",
+          observation: `Endereço: ${lead.endereco || "N/A"}\nSite: ${
+            lead.site || "N/A"
+          }\nNota SEO: ${lead.notaSeo || "N/A"}\nOrigem: Gerador de Leads Maps`,
+        };
+
+        const crmResponse = await fetch(CRM_API_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Basic ${CRM_AUTH_TOKEN}`,
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!crmResponse.ok) {
+          return new Response(
+            JSON.stringify({ error: true, message: "Erro no CRM" }),
+            { status: 500 }
+          );
+        }
+
+        return Response.json({ success: true });
+      } catch (error) {
+        return new Response("Erro interno", { status: 500 });
+      }
+    }
+
     if (url.pathname === "/api/buscar-leads" && req.method === "POST") {
       try {
         const body = await req.json();
@@ -135,18 +172,19 @@ Bun.serve({
           <script src="https://cdn.tailwindcss.com"></script>
         </head>
         <body class="bg-gray-100 p-10 font-sans">
-          <div class="max-w-5xl mx-auto bg-white p-8 rounded-lg shadow-md">
-            <h1 class="text-3xl font-bold mb-6 text-gray-800">Prospecção de Leads</h1>
+          <div class="max-w-6xl mx-auto bg-white p-8 rounded-lg shadow-md">
+            
+            <div class="flex justify-between items-center mb-6">
+              <h1 class="text-3xl font-bold text-gray-800">Prospecção de Leads</h1>
+              <button onclick="exportarCSV()" id="btn-csv" class="hidden bg-green-600 text-white px-4 py-2 rounded font-semibold hover:bg-green-700 transition">
+                📥 Exportar CSV
+              </button>
+            </div>
             
             <div class="flex flex-col md:flex-row gap-4 mb-8">
-              <input type="text" id="keyword" placeholder="O que buscar? (Ex: Clínica Veterinária)" 
-                class="flex-1 border border-gray-300 rounded px-4 py-3 text-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-              
-              <input type="text" id="cidade" placeholder="Onde? (Ex: Canoas)" value="Porto Alegre"
-                class="flex-1 border border-gray-300 rounded px-4 py-3 text-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-              
-              <button onclick="buscar()" id="btn-buscar"
-                class="bg-blue-600 text-white px-8 py-3 rounded text-lg hover:bg-blue-700 font-semibold transition whitespace-nowrap">
+              <input type="text" id="keyword" placeholder="O que buscar? (Ex: Clínica Veterinária)" class="flex-1 border border-gray-300 rounded px-4 py-3 text-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <input type="text" id="cidade" placeholder="Onde? (Ex: Canoas)" value="Porto Alegre" class="flex-1 border border-gray-300 rounded px-4 py-3 text-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <button onclick="buscar()" id="btn-buscar" class="bg-blue-600 text-white px-8 py-3 rounded text-lg hover:bg-blue-700 font-semibold transition whitespace-nowrap">
                 Buscar Leads
               </button>
             </div>
@@ -170,30 +208,103 @@ Bun.serve({
           </div>
 
           <script>
+            let leadsGlobais = { semSite: [], comSite: [] };
+
+            function formatarTelefone(tel) {
+              return tel.replace(/\\D/g, '');
+            }
+
+            async function salvarCRM(btn, leadData) {
+              const textoOriginal = btn.innerHTML;
+              btn.innerHTML = '⏳ Salvando...';
+              btn.disabled = true;
+
+              try {
+                const res = await fetch('/api/salvar-crm', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(leadData)
+                });
+
+                if (res.ok) {
+                  btn.innerHTML = '✅ No CRM';
+                  btn.classList.replace('bg-purple-100', 'bg-green-100');
+                  btn.classList.replace('text-purple-700', 'text-green-800');
+                } else {
+                  throw new Error('Falha');
+                }
+              } catch (e) {
+                btn.innerHTML = '❌ Erro';
+                setTimeout(() => {
+                  btn.innerHTML = textoOriginal;
+                  btn.disabled = false;
+                }, 2000);
+              }
+            }
+
+            function exportarCSV() {
+              let csvContent = "data:text/csv;charset=utf-8,Nome,Telefone,Endereço,Site,Nota SEO,Status\\n";
+              
+              leadsGlobais.semSite.forEach(lead => {
+                csvContent += \`"\${lead.nome}","\${lead.telefone}","\${lead.endereco}","N/A","N/A","Sem Site"\\n\`;
+              });
+              
+              leadsGlobais.comSite.forEach(lead => {
+                csvContent += \`"\${lead.nome}","\${lead.telefone}","N/A","\${lead.site}","\${lead.notaSeo || 'N/A'}","Com Site"\\n\`;
+              });
+
+              const encodedUri = encodeURI(csvContent);
+              const link = document.createElement("a");
+              link.setAttribute("href", encodedUri);
+              link.setAttribute("download", "leads_prospeccao.csv");
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            }
+
             function createCard(lead, tipo) {
               const mapsUrl = \`https://www.google.com/maps/search/?api=1&query=\${encodeURIComponent(lead.nome)}&query_place_id=\${lead.placeId}\`;
+              const leadJson = JSON.stringify(lead).replace(/'/g, "\\\\'");
               
+              const telLimpo = formatarTelefone(lead.telefone);
+              const isBR = telLimpo.startsWith('55') ? telLimpo : '55' + telLimpo;
+              const msgWa = encodeURIComponent(\`Olá, equipe da \${lead.nome}!\`);
+              const waUrl = \`https://wa.me/\${isBR}?text=\${msgWa}\`;
+
               let extraInfo = '';
               if (tipo === 'semsite') {
-                extraInfo = \`<p class="text-sm text-gray-600 mt-1">📍 \${lead.endereco}</p>\`;
+                extraInfo = \`<p class="text-sm text-gray-600 mt-2">📍 \${lead.endereco}</p>\`;
               } else {
                 const seoColor = lead.notaSeo < 50 ? 'text-red-600' : lead.notaSeo < 80 ? 'text-yellow-600' : 'text-green-600';
                 const seoText = lead.notaSeo ? \`<span class="font-bold \${seoColor}">\${lead.notaSeo}/100</span>\` : '<span class="text-gray-400">N/A</span>';
                 
                 extraInfo = \`
-                  <p class="text-sm text-blue-600 mt-1 truncate"><a href="\${lead.site}" target="_blank" class="hover:underline">🌐 \${lead.site}</a></p>
-                  <p class="text-sm text-gray-600 mt-1">🎯 Desempenho SEO: \${seoText}</p>
+                  <div class="mt-3 pt-3 border-t border-gray-200">
+                    <p class="text-sm text-blue-600 truncate"><a href="\${lead.site}" target="_blank" class="hover:underline">🌐 \${lead.site}</a></p>
+                    <p class="text-sm text-gray-600 mt-1">🎯 Desempenho SEO: \${seoText}</p>
+                  </div>
                 \`;
               }
 
               return \`
-                <div class="bg-gray-50 border border-gray-200 p-5 rounded-lg shadow-sm hover:shadow-md transition-shadow relative group">
+                <div class="bg-gray-50 border border-gray-200 p-5 rounded-lg shadow-sm hover:shadow-md transition-shadow relative">
                   <h3 class="font-bold text-lg text-gray-800 pr-24">\${lead.nome}</h3>
-                  <p class="text-md text-gray-700 mt-2 font-medium">📞 \${lead.telefone}</p>
+                  <p class="text-md text-gray-700 font-medium mt-1">📞 \${lead.telefone}</p>
+                  
+                  <div class="flex gap-2 mt-3">
+                    \${lead.telefone !== 'Não informado' ? \`
+                      <a href="\${waUrl}" target="_blank" class="text-xs bg-green-100 hover:bg-green-200 text-green-800 px-3 py-1.5 rounded transition font-semibold">
+                        💬 Chamar Whats
+                      </a>
+                    \` : ''}
+                    <button onclick='salvarCRM(this, \${leadJson})' class="text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-1.5 rounded transition font-semibold">
+                      📥 Salvar no CRM
+                    </button>
+                  </div>
+                  
                   \${extraInfo}
                   
-                  <a href="\${mapsUrl}" target="_blank" 
-                     class="absolute top-5 right-5 bg-blue-100 text-blue-700 px-3 py-1.5 rounded-md text-sm font-semibold hover:bg-blue-200 transition">
+                  <a href="\${mapsUrl}" target="_blank" class="absolute top-5 right-5 bg-blue-100 text-blue-700 px-3 py-1.5 rounded-md text-sm font-semibold hover:bg-blue-200 transition">
                     Ver Perfil
                   </a>
                 </div>
@@ -208,6 +319,7 @@ Bun.serve({
 
               document.getElementById('loading').classList.remove('hidden');
               document.getElementById('resultados').classList.add('hidden');
+              document.getElementById('btn-csv').classList.add('hidden');
               document.getElementById('btn-buscar').disabled = true;
 
               try {
@@ -218,21 +330,21 @@ Bun.serve({
                 });
                 
                 const data = await res.json();
+                leadsGlobais = data;
                 
                 document.getElementById('count-sem-site').textContent = data.semSite.length;
                 document.getElementById('count-com-site').textContent = data.comSite.length;
 
-                const containerSemSite = document.getElementById('lista-sem-site');
-                containerSemSite.innerHTML = data.semSite.length > 0 
+                document.getElementById('lista-sem-site').innerHTML = data.semSite.length > 0 
                   ? data.semSite.map(lead => createCard(lead, 'semsite')).join('')
                   : '<p class="text-gray-500 italic">Nenhuma empresa sem site encontrada.</p>';
 
-                const containerComSite = document.getElementById('lista-com-site');
-                containerComSite.innerHTML = data.comSite.length > 0
+                document.getElementById('lista-com-site').innerHTML = data.comSite.length > 0
                   ? data.comSite.map(lead => createCard(lead, 'comsite')).join('')
                   : '<p class="text-gray-500 italic">Nenhuma empresa com site encontrada.</p>';
 
                 document.getElementById('resultados').classList.remove('hidden');
+                document.getElementById('btn-csv').classList.remove('hidden');
               } catch (e) {
                 alert('Erro ao buscar dados.');
               } finally {
