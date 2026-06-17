@@ -29,19 +29,39 @@ interface LeadComSite {
   placeId: string;
 }
 
-async function searchPlaces(query: string): Promise<Place[]> {
-  const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(
-    query
-  )}&key=${GOOGLE_API_KEY}`;
-  const response = await fetch(url);
-  const data = await response.json();
+async function searchPlaces(query: string, maxPages = 3): Promise<Place[]> {
+  let allPlaces: Place[] = [];
+  let nextPageToken: string | undefined = undefined;
+  let pagesFetched = 0;
 
-  if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
-    console.error(`\n❌ Erro Busca: Status ${data.status}`);
-    if (data.error_message) console.error(data.error_message);
-  }
+  do {
+    let url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(
+      query
+    )}&key=${GOOGLE_API_KEY}`;
 
-  return data.results || [];
+    if (nextPageToken) {
+      url = `https://maps.googleapis.com/maps/api/place/textsearch/json?pagetoken=${nextPageToken}&key=${GOOGLE_API_KEY}`;
+      await Bun.sleep(2000);
+    }
+
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
+      console.error(`\n❌ Erro Busca: Status ${data.status}`);
+      if (data.error_message) console.error(data.error_message);
+      break;
+    }
+
+    if (data.results) {
+      allPlaces = allPlaces.concat(data.results);
+    }
+
+    nextPageToken = data.next_page_token;
+    pagesFetched++;
+  } while (nextPageToken && pagesFetched < maxPages);
+
+  return allPlaces;
 }
 
 async function getPlaceDetails(placeId: string): Promise<PlaceDetails> {
@@ -214,7 +234,7 @@ Bun.serve({
 
             <div id="loading" class="hidden flex items-center gap-3 text-blue-600 font-semibold mb-4 animate-pulse">
               <svg class="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-              Varrendo o Google Maps e testando SEO...
+              Varrendo até 60 empresas e testando SEO. Isso pode levar alguns minutos...
             </div>
 
             <div id="resultados" class="hidden grid grid-cols-1 md:grid-cols-2 gap-8 mt-6">
