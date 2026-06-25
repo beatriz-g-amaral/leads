@@ -1,6 +1,5 @@
 const GOOGLE_API_KEY = "AIzaSyA-J4VenGoCiQeI3qX1NECd7hebwM7X4As";
-const CRM_API_URL =
-  "https://lhc.webplanet.com.br/zap3stor/restapi/opportunities";
+const CRM_API_URL = "https://lhc.webplanet.com.br/zap3stor/restapi/opportunities";
 const CRM_AUTH_TOKEN = "YWRtaW46V2VibmUxMA==";
 
 interface Place {
@@ -215,8 +214,36 @@ Bun.serve({
           <script src="https://cdn.tailwindcss.com"></script>
         </head>
         <body class="bg-gray-100 p-10 font-sans">
+          
+          <!-- MODAL WHATSAPP -->
+          <div id="whats-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 transition-opacity">
+            <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg relative">
+              <h3 class="text-xl font-bold mb-4 text-gray-800">Escolha a mensagem para <br><span id="modal-lead-name" class="text-blue-600"></span></h3>
+              
+              <div class="space-y-3">
+                <button onclick="enviarWhats('semsite')" class="w-full text-left p-3 border border-gray-200 rounded hover:bg-gray-50 transition flex flex-col gap-1">
+                  <span class="font-bold text-gray-800">🚨 Sem Site</span>
+                  <span class="text-xs text-gray-500 line-clamp-2">"Estava analisando a presença digital... reparei que vocês não têm um site..."</span>
+                </button>
+                
+                <button onclick="enviarWhats('fora')" class="w-full text-left p-3 border border-gray-200 rounded hover:bg-gray-50 transition flex flex-col gap-1">
+                  <span class="font-bold text-gray-800">🌐 Site Fora do Ar</span>
+                  <span class="text-xs text-gray-500 line-clamp-2">"Estava analisando a presença digital... reparei que o seu site estava fora do ar..."</span>
+                </button>
+
+                <button onclick="enviarWhats('ruim')" class="w-full text-left p-3 border border-gray-200 rounded hover:bg-gray-50 transition flex flex-col gap-1">
+                  <span class="font-bold text-gray-800">📉 Site Mal Desenvolvido (SEO Baixo)</span>
+                  <span class="text-xs text-gray-500 line-clamp-2">"Estava analisando a presença digital... reparei que o site de vocês apresenta falhas de otimização..."</span>
+                </button>
+              </div>
+
+              <button onclick="fecharModal()" class="mt-6 w-full py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded transition">
+                Cancelar
+              </button>
+            </div>
+          </div>
+
           <div class="max-w-6xl mx-auto bg-white p-8 rounded-lg shadow-md">
-            
             <div class="flex justify-between items-center mb-6">
               <h1 class="text-3xl font-bold text-gray-800">Prospecção de Leads</h1>
               <button onclick="exportarCSV()" id="btn-csv" class="hidden bg-green-600 text-white px-4 py-2 rounded font-semibold hover:bg-green-700 transition">
@@ -252,9 +279,39 @@ Bun.serve({
 
           <script>
             let leadsGlobais = { semSite: [], comSite: [] };
+            let leadAtualWhats = { nome: '', telefone: '' };
 
             function formatarTelefone(tel) {
               return tel.replace(/\\D/g, '');
+            }
+
+            function abrirModalWhats(nome, telefone) {
+              leadAtualWhats = { nome, telefone };
+              document.getElementById('modal-lead-name').textContent = nome;
+              document.getElementById('whats-modal').classList.remove('hidden');
+            }
+
+            function fecharModal() {
+              document.getElementById('whats-modal').classList.add('hidden');
+            }
+
+            function enviarWhats(tipo) {
+              const { nome, telefone } = leadAtualWhats;
+              let msg = '';
+              
+              if(tipo === 'semsite') {
+                msg = \`Oi \${nome}, tudo bem? Me chamo Beatriz e trabalho com desenvolvimento web. Estava analisando a presença digital de negócios locais e reparei que vocês não têm um site no Google e podem estar perdendo clientes por isso. Teria interesse em receber uma proposta rápida? Segue meu portfólio: https://beatrizamaral.vercel.app/\`;
+              } else if(tipo === 'fora') {
+                msg = \`Oi \${nome}, tudo bem? Me chamo Beatriz e trabalho com desenvolvimento web. Estava analisando a presença digital de negócios locais e reparei que o seu site estava fora do ar e podem estar perdendo clientes por isso. Teria interesse em receber uma proposta rápida? Segue meu portfólio: https://beatrizamaral.vercel.app/\`;
+              } else if(tipo === 'ruim') {
+                msg = \`Oi \${nome}, tudo bem? Me chamo Beatriz e trabalho com desenvolvimento web. Estava analisando a presença digital de negócios locais e reparei que o site de vocês apresenta falhas de otimização que fazem a empresa perder posições de busca no Google. Teria interesse em receber uma proposta de melhoria rápida? Segue meu portfólio: https://beatrizamaral.vercel.app/\`;
+              }
+
+              const isBR = telefone.startsWith('55') ? telefone : '55' + telefone;
+              const waUrl = \`https://wa.me/\${isBR}?text=\${encodeURIComponent(msg)}\`;
+              
+              window.open(waUrl, '_blank');
+              fecharModal();
             }
 
             async function salvarCRM(btn, leadData) {
@@ -316,11 +373,8 @@ Bun.serve({
             function createCard(lead, tipo) {
               const mapsUrl = \`https://www.google.com/maps/search/?api=1&query=\${encodeURIComponent(lead.nome)}&query_place_id=\${lead.placeId}\`;
               const leadJson = JSON.stringify(lead).replace(/'/g, "\\\\'");
-              
+              const nomeSafe = lead.nome.replace(/'/g, "\\\\'");
               const telLimpo = formatarTelefone(lead.telefone);
-              const isBR = telLimpo.startsWith('55') ? telLimpo : '55' + telLimpo;
-              const msgWa = encodeURIComponent(\`Olá, equipe da \${lead.nome}!\`);
-              const waUrl = \`https://wa.me/\${isBR}?text=\${msgWa}\`;
 
               let extraInfo = '';
               if (tipo === 'semsite') {
@@ -344,9 +398,9 @@ Bun.serve({
                   
                   <div class="flex gap-2 mt-3">
                     \${lead.telefone !== 'Não informado' ? \`
-                      <a href="\${waUrl}" target="_blank" class="text-xs bg-green-100 hover:bg-green-200 text-green-800 px-3 py-1.5 rounded transition font-semibold">
+                      <button onclick="abrirModalWhats('\${nomeSafe}', '\${telLimpo}')" class="text-xs bg-green-100 hover:bg-green-200 text-green-800 px-3 py-1.5 rounded transition font-semibold">
                         💬 Chamar Whats
-                      </a>
+                      </button>
                     \` : ''}
                     <button onclick='salvarCRM(this, \${leadJson})' class="text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-1.5 rounded transition font-semibold">
                       📥 Salvar no CRM
